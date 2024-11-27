@@ -11,7 +11,7 @@
 // #include <Ethernet.h>
 #include <M5_Ethernet.h>
 
-#include <EthernetUdp.h>
+// #include <EthernetUdp.h>
 #include "Artnet/util/TeensyDirtySTLErrorSolution/TeensyDirtySTLErrorSolution.h"
 #include "Artnet/Manager.h"
 

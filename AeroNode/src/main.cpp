@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Preferences.h>
+#include <SPI.h>
 #include <ArtnetEther.h>
 #include "librmt/esp32_digital_led_lib.h"
 #include "libfast/crgbw.h"
@@ -12,7 +13,12 @@
 #define _STRIP_POSITION 1
 
 const int PIXEL_COUNT = 660;
-const int PIN_LED = 32;
+const int PIN_LED = 26; // 26, 32
+
+#define SCK  22
+#define MISO 23
+#define MOSI 33
+#define CS   19
 
 //
 // VARIABLES
@@ -49,6 +55,31 @@ void all(pixelColor_t color) {
 
 void all(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
   all(pixelFromRGBW(r, g, b, w));
+}
+
+void dumpArtnet(const uint8_t *data, uint16_t size, ArtNetRemoteInfo remote, ArtDmxMetadata metadata) {
+  Serial.print("lambda : artnet data from ");
+  Serial.print(remote.ip);
+  Serial.print(":");
+  Serial.print(remote.port);
+  Serial.print(", universe = ");
+  Serial.print(metadata.universe);
+  // Serial.print(", sequence = ");
+  // Serial.print(metadata.sequence);
+  // Serial.print(", physical = ");
+  // Serial.print(metadata.physical);
+  // Serial.print(", net = ");
+  // Serial.print(metadata.net);
+  // Serial.print(", subnet = ");
+  // Serial.print(metadata.subnet);
+  Serial.print(", size = ");
+  Serial.print(size);
+  Serial.print(") : ");
+  for (size_t i = 0; i < 8; ++i) {
+      Serial.print(data[i]);
+      Serial.print(",");
+  }
+  Serial.println();
 }
 
 
@@ -97,7 +128,13 @@ void setup() {
   // Set up ethernet
   esp_efuse_mac_get_default(mac); mac[0] = 0x02;
   ip[3] = STRIP_POSITION;
-  Ethernet.begin(mac, ip);
+  SPI.begin(SCK, MISO, MOSI, -1);
+  Ethernet.init(CS);
+  delay(200);
+  Ethernet.begin(mac, ip, IPAddress(2, 0, 0, 1), IPAddress(2, 0, 0, 1), IPAddress(255, 255, 0, 0));
+  delay(200);
+  Serial.print("IP Address: ");
+  Serial.println(Ethernet.localIP());
 
   // Set up artnet
   universeCount = ceil( PIXEL_COUNT * 4 / 512 );
@@ -106,22 +143,18 @@ void setup() {
 
   Serial.print("Starting Artnet on universes: ");
   for (int i = 0; i <= universeCount; i++) {
-    artnet.subscribeArtDmxUniverse(universeStart+i, 
+    artnet.subscribeArtDmxUniverse(universeStart + i, 
       [&](const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
-          Serial.print("lambda : artnet data from ");
-          Serial.print(remote.ip);
-          Serial.print(":");
-          Serial.print(remote.port);
-          Serial.print(", universe = ");
-          Serial.print(universeStart+i);
-          Serial.print(", size = ");
-          Serial.print(size);
-          Serial.print(") :");
-          for (size_t i = 0; i < size; ++i) {
-              Serial.print(data[i]);
-              Serial.print(",");
-          }
-          Serial.println();
+        dumpArtnet(data, size, remote, metadata);
+        int pixStart = (metadata.universe - universeStart) * (512/4);
+        int pixEnd = pixStart + (size / 4) - 1;
+        if (pixEnd >= PIXEL_COUNT) pixEnd = PIXEL_COUNT-1;
+        Serial.printf("Setting pixels %d to %d\n", pixStart, pixEnd);
+        for (int i = pixStart; i <= pixEnd; i++) {
+          int ix = (i - pixStart) * 4;
+          buffer[i] = pixelFromRGBW(data[ix], data[ix+1], data[ix+2], data[ix+3]);
+        }
+        dirty = true;
       });
     Serial.printf(" %d", universeStart+i);
   }
@@ -150,12 +183,19 @@ void setup() {
 //
 void loop() 
 {
+  artnet.parse(); 
 
   // Push buffer to strip and draw
   if (dirty) {
     memcpy(&strip->pixels, &buffer, sizeof(buffer));
     digitalLeds_updatePixels(strip);           // PUSH LEDS TO RMT
     dirty = false;
+    // Serial.print("Updated strip ");
+    // for (int i = 0; i < 256; i++) {
+    //   Serial.print(buffer[i].r);
+    //   Serial.print(",");
+    // }
+    // Serial.println();
   }
   delay(1);
 }
