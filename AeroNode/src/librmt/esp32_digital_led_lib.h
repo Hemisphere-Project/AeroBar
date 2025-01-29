@@ -95,6 +95,7 @@ extern "C"
     LED_SK6812_V1,
     LED_SK6812W_V1,
     LED_SK6812W_V3,
+    LED_SK6812W_V4,
     LED_TM1934,
   };
 
@@ -112,6 +113,7 @@ extern "C"
       [LED_SK6812_V1]  = {.bytesPerPixel = 3, .ledOrder = S_GRB, .T0H = 300, .T1H = 600, .T0L = 900, .T1L = 600, .TRS = 80000},  // R V B
       [LED_SK6812W_V1] = {.bytesPerPixel = 4, .ledOrder = S_GRB, .T0H = 300, .T1H = 600, .T0L = 900, .T1L = 600, .TRS = 80000}, // R V B W
       [LED_SK6812W_V3] = {.bytesPerPixel = 4, .ledOrder = S_GRB, .T0H = 350, .T1H = 700, .T0L = 800, .T1L = 600, .TRS = 50000}, // R V B W
+      [LED_SK6812W_V4] = {.bytesPerPixel = 4, .ledOrder = S_GRB, .T0H = 300, .T1H = 900, .T0L = 900, .T1L = 300, .TRS = 50000}, // R V B W
       [LED_TM1934]     = {.bytesPerPixel = 3, .ledOrder = S_GRB, .T0H = 560, .T1H = 480, .T0L = 280, .T1L = 640, .TRS = 48000}, // W W W
 };
 

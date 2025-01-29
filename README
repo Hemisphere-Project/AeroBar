@@ -1,0 +1,16 @@
+## FFMPEG prepare ESP32 video
+
+ffmpeg -i BigBuckBunny_640x360.m4v -vf "scale=544:306" bbb544.mp4
+ffmpeg -i bbb544.mp4 -c copy -an bbb544-noaudio.mp4
+ffmpeg -i bbb544-noaudio.mp4 -vf crop=w=544:h=72 bbb544-noaudio-crop72.mp4
+ffmpeg -i bbb544-noaudio-crop72.mp4 -vcodec mjpeg -qscale 1 -an microbbb.avi
+
+ffmpeg -i BigBuckBunny_640x360.m4v -vf "scale=544:-1,crop=iw:18" -vcodec mjpeg -q:v 1 -an microbbb.avi
+
+
+# LIBS
+
+https://github.com/moononournation/RGB565_video
+
+https://github.com/moononournation/RGB565_video/blob/master/SD_MJPEG_video/SD_MJPEG_video.ino
+

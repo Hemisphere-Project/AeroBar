@@ -10,10 +10,13 @@
 //
 
 // Uncomment to set
-#define _STRIP_POSITION 1
+#define _STRIP_POSITION 18
 
-const int PIXEL_COUNT = 660;
+const int STRIP_SIZES[19] = {0, 528, 537, 543, 537, 534, 537, 540, 537, 537, 525, 525, 528, 531, 543, 540, 534, 528, 528};
+int PIXEL_COUNT = 0;  // 660
+
 const int PIN_LED = 26; // 26, 32
+const int PIN_REF = 32; // 26, 32
 
 #define SCK  22
 #define MISO 23
@@ -28,44 +31,80 @@ const int PIN_LED = 26; // 26, 32
 bool dirty = false;
 strand_t* strip;
 pixelColor_t* buffer;
+pixelColor_t* bufferOUT;
+SemaphoreHandle_t bufferMutex;
 
 // Internals
 int STRIP_POSITION;
 Preferences preferences;
 
+// Tests
+unsigned long lastChange = 0;
+int color = 0;
+int testMaster = 100;
+bool testing = true;
+
 // Artnet stuff
 ArtnetReceiver artnet;
-IPAddress ip(2, 0, 1, 0);
+IPAddress ip(10, 0, 0, 0);
 uint8_t mac[] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB};
 int universeStart = 0;
-int universeCount = 0;
+int universeCount = 4;
+const uint8_t dmxPixelSize = 3; // 4: RGBW, 3: RGB
+int lastSequence = 0;
 
 //
 // LEDS
 //
+// drawTask
+void drawTask(void *pvParameters) {
+  while (true) {
+    if (dirty) {
+      xSemaphoreTake(bufferMutex, portMAX_DELAY);
+      memcpy(&strip->pixels, &bufferOUT, sizeof(bufferOUT));
+      xSemaphoreGive(bufferMutex);
+      dirty = false;
+      digitalLeds_updatePixels(strip);           // PUSH LEDS TO RMT
+    }
+    else delay(1);
+  }
+}
+
+void draw() {
+  xSemaphoreTake(bufferMutex, portMAX_DELAY);
+  memcpy(bufferOUT, buffer, PIXEL_COUNT * sizeof(pixelColor_t));
+  xSemaphoreGive(bufferMutex);
+  dirty = true;
+}
+
 void clear() {
   memset(buffer, 0, PIXEL_COUNT * sizeof(pixelColor_t));
-  dirty = true;
+  draw();
 }
 
 void all(pixelColor_t color) {
   for (int i = 0; i < PIXEL_COUNT; i++) buffer[i] = color;
-  dirty = true;
+  draw();
 }
 
 void all(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
   all(pixelFromRGBW(r, g, b, w));
 }
 
-void dumpArtnet(const uint8_t *data, uint16_t size, ArtNetRemoteInfo remote, ArtDmxMetadata metadata) {
+void all(uint8_t r, uint8_t g, uint8_t b) {
+  all(pixelFromRGBtoW(r, g, b));
+}
+
+void dumpArtnet(const uint8_t *data, uint16_t size, ArtNetRemoteInfo remote, ArtDmxMetadata metadata) 
+{
   Serial.print("lambda : artnet data from ");
   Serial.print(remote.ip);
   Serial.print(":");
   Serial.print(remote.port);
   Serial.print(", universe = ");
   Serial.print(metadata.universe);
-  // Serial.print(", sequence = ");
-  // Serial.print(metadata.sequence);
+  Serial.print(", sequence = ");
+  Serial.print(metadata.sequence);
   // Serial.print(", physical = ");
   // Serial.print(metadata.physical);
   // Serial.print(", net = ");
@@ -80,6 +119,36 @@ void dumpArtnet(const uint8_t *data, uint16_t size, ArtNetRemoteInfo remote, Art
       Serial.print(",");
   }
   Serial.println();
+
+}
+
+void onArtnet(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
+  // STOP TESTING
+  if (testing) {
+    testing = false;
+    all(0, 0, 0, 0);
+  }
+
+  // if (metadata.sequence != lastSequence) {
+  //   draw();
+  //   lastSequence = metadata.sequence;
+  // }
+
+  // dumpArtnet(data, size, remote, metadata);
+
+  int pixStart = (metadata.universe - universeStart) * (512/dmxPixelSize);
+  int pixEnd = pixStart + (size / dmxPixelSize) - 1;
+  if (pixEnd >= PIXEL_COUNT) pixEnd = PIXEL_COUNT-1;
+  // Serial.printf("Setting pixels %d to %d\n", pixStart, pixEnd);
+  for (int i = pixStart; i <= pixEnd; i++) {
+    int ix = (i - pixStart) * dmxPixelSize;
+    if (dmxPixelSize ==  4)     buffer[i] = pixelFromRGBW(data[ix], data[ix+1], data[ix+2], data[ix+3]);
+    else if (dmxPixelSize == 3) buffer[i] = pixelFromRGBtoW(data[ix], data[ix+1], data[ix+2]);
+  }
+
+  // Last Universe: set dirty
+  // if (metadata.universe == universeStart + universeCount) dirty = true;
+  // if (metadata.universe == universeStart ) dirty = true;
 }
 
 
@@ -91,6 +160,10 @@ void setup() {
   // Init Serial
   Serial.begin(115200);
   delay(1000);
+
+  // Set Pin REF to high
+  pinMode(PIN_REF, OUTPUT);
+  digitalWrite(PIN_REF, HIGH);
 
   // ASCII Art Logo
   Serial.println("                                          ");
@@ -125,53 +198,65 @@ void setup() {
   }
   Serial.printf("Strip position: %d\n", STRIP_POSITION);
 
+  // Set pixel count
+  PIXEL_COUNT = STRIP_SIZES[STRIP_POSITION];
+  Serial.printf("Pixel count: %d\n", PIXEL_COUNT);
+
   // Set up ethernet
-  esp_efuse_mac_get_default(mac); mac[0] = 0x02;
+  esp_efuse_mac_get_default(mac); 
+  mac[0] = 0x02;
   ip[3] = STRIP_POSITION;
   SPI.begin(SCK, MISO, MOSI, -1);
   Ethernet.init(CS);
   delay(200);
-  Ethernet.begin(mac, ip, IPAddress(2, 0, 0, 1), IPAddress(2, 0, 0, 1), IPAddress(255, 255, 0, 0));
+  Ethernet.begin(mac, ip, IPAddress(10, 0, 0, 254), IPAddress(10, 0, 0, 254), IPAddress(255, 255, 255, 0));
   delay(200);
   Serial.print("IP Address: ");
   Serial.println(Ethernet.localIP());
 
   // Set up artnet
-  universeCount = ceil( PIXEL_COUNT * 4 / 512 );
-  universeStart = ((STRIP_POSITION - 1) * universeCount) + 1;
+  // universeCount = ceil( PIXEL_COUNT * dmxPixelSize / 512 );
+  universeStart = ((STRIP_POSITION - 1) * universeCount);
   artnet.begin();
 
   Serial.print("Starting Artnet on universes: ");
-  for (int i = 0; i <= universeCount; i++) {
-    artnet.subscribeArtDmxUniverse(universeStart + i, 
-      [&](const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
-        dumpArtnet(data, size, remote, metadata);
-        int pixStart = (metadata.universe - universeStart) * (512/4);
-        int pixEnd = pixStart + (size / 4) - 1;
-        if (pixEnd >= PIXEL_COUNT) pixEnd = PIXEL_COUNT-1;
-        Serial.printf("Setting pixels %d to %d\n", pixStart, pixEnd);
-        for (int i = pixStart; i <= pixEnd; i++) {
-          int ix = (i - pixStart) * 4;
-          buffer[i] = pixelFromRGBW(data[ix], data[ix+1], data[ix+2], data[ix+3]);
-        }
-        dirty = true;
-      });
+  for (int i = 0; i < universeCount; i++) {
+    artnet.subscribeArtDmxUniverse(universeStart + i, onArtnet);
     Serial.printf(" %d", universeStart+i);
   }
   Serial.println();
+
+  // ArtSync
+  artnet.subscribeArtSync([](const ArtNetRemoteInfo &remote) {
+    // Serial.print("ArtSync from ");
+    // Serial.print(remote.ip);
+    // Serial.print(":");
+    // Serial.println(remote.port);
+    draw();
+  });
+
+  // ArtPollReply
+  artnet.setArtPollReplyConfigShortName("AeroNode-"+String(STRIP_POSITION));
+  artnet.setArtPollReplyConfigLongName("AeroNode - "+String(STRIP_POSITION));
  
   // Set STRIP
   digitalLeds_init();
   strip = digitalLeds_addStrand(
-          {.rmtChannel = 0, .gpioNum = PIN_LED, .ledType = LED_SK6812W_V3, .brightLimit = 255, .numPixels = PIXEL_COUNT, .pixels = nullptr, ._stateVars = nullptr});
+          {.rmtChannel = 0, .gpioNum = PIN_LED, .ledType = LED_SK6812W_V1, .brightLimit = 255, .numPixels = PIXEL_COUNT, .pixels = nullptr, ._stateVars = nullptr});
   
   buffer = (pixelColor_t*)malloc(PIXEL_COUNT * sizeof(pixelColor_t));
+  bufferOUT = (pixelColor_t*)malloc(PIXEL_COUNT * sizeof(pixelColor_t));
+  bufferMutex = xSemaphoreCreateMutex();
 
   // Init buffer 
   clear();
+  draw();
 
   // Set all pixels to low white
-  all(0, 0, 0, 20);
+  // all(10, 10, 10, 10);
+
+  // Draw thread
+  xTaskCreate(drawTask, "drawTask", 4096, NULL, 1, NULL);
 
   // Ready
   Serial.println("Ready.");
@@ -183,21 +268,22 @@ void setup() {
 //
 void loop() 
 {
-  artnet.parse(); 
+  artnet.parse();                          // PARSE ARTNET
 
-  // Push buffer to strip and draw
-  if (dirty) {
-    memcpy(&strip->pixels, &buffer, sizeof(buffer));
-    digitalLeds_updatePixels(strip);           // PUSH LEDS TO RMT
-    dirty = false;
-    // Serial.print("Updated strip ");
-    // for (int i = 0; i < 256; i++) {
-    //   Serial.print(buffer[i].r);
-    //   Serial.print(",");
-    // }
-    // Serial.println();
-  }
-  delay(1);
+  // rotate between all red, green, blue and white every 5 seconds
+  if (testing)
+    if (millis() - lastChange > 1000) {
+      lastChange = millis();
+      switch (color) {
+        case 0: all(testMaster, 0, testMaster); break;
+        case 1: all(testMaster, testMaster, 0); break;
+        case 2: all(0, testMaster, testMaster); break;
+        case 3: all(testMaster, testMaster, testMaster); break;
+      }
+      color = (color + 1) % 4;
+    }
 }
+
+
 
 
