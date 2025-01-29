@@ -4,13 +4,14 @@
 #include <ArtnetEther.h>
 #include "librmt/esp32_digital_led_lib.h"
 #include "libfast/crgbw.h"
+#include "network/K32_wifi.h"
 
 // 
 // CONFIGURATION
 //
 
 // Uncomment to set
-#define _STRIP_POSITION 18
+// #define _STRIP_POSITION 18
 
 const int STRIP_SIZES[19] = {0, 528, 537, 543, 537, 534, 537, 540, 537, 537, 525, 525, 528, 531, 543, 540, 534, 528, 528};
 int PIXEL_COUNT = 0;  // 660
@@ -52,6 +53,9 @@ int universeStart = 0;
 int universeCount = 4;
 const uint8_t dmxPixelSize = 3; // 4: RGBW, 3: RGB
 int lastSequence = 0;
+
+// Wifi
+K32_wifi *wifi;
 
 //
 // LEDS
@@ -227,17 +231,16 @@ void setup() {
   Serial.println();
 
   // ArtSync
-  artnet.subscribeArtSync([](const ArtNetRemoteInfo &remote) {
-    // Serial.print("ArtSync from ");
-    // Serial.print(remote.ip);
-    // Serial.print(":");
-    // Serial.println(remote.port);
-    draw();
-  });
+  artnet.subscribeArtSync([](const ArtNetRemoteInfo &remote) { draw(); });
 
   // ArtPollReply
-  artnet.setArtPollReplyConfigShortName("AeroNode-"+String(STRIP_POSITION));
-  artnet.setArtPollReplyConfigLongName("AeroNode - "+String(STRIP_POSITION));
+  String name = "AeroNode-"+String(STRIP_POSITION);
+  artnet.setArtPollReplyConfigShortName(name);
+  artnet.setArtPollReplyConfigLongName(name);
+
+  // Set up wifi
+  wifi = new K32_wifi(name);
+  wifi->connect("hmsphr", "hemiproject");
  
   // Set STRIP
   digitalLeds_init();
@@ -268,7 +271,14 @@ void setup() {
 //
 void loop() 
 {
-  artnet.parse();                          // PARSE ARTNET
+  // OTA
+  if (wifi->otaState == ERROR) ESP.restart();
+  else if (wifi->otaState > OFF) {
+    all(0, 0, 50, 0);
+    return;
+  }
+
+  artnet.parse();      // PARSE ARTNET
 
   // rotate between all red, green, blue and white every 5 seconds
   if (testing)
