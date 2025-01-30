@@ -35,4 +35,6 @@
 node_modules/
 npm-debug.log
 
-
+# media
+*.mov
+*.mp4
