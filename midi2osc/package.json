@@ -1,0 +1,15 @@
+{
+  "name": "midi2osc",
+  "version": "1.0.0",
+  "main": "midi2osc.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "midi": "^2.0.0",
+    "osc": "^2.4.5"
+  }
+}

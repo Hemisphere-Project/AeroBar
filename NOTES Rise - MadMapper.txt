@@ -1,0 +1,17 @@
+==== RISE - MADMAPPER ====
+
+Le launcher "AeroBar RISE" sur le Bureau effectue les opérations suivantes:
+
+- copie C:\Rise\Rise-original.mad dans C:\Users\aerob\Documents\Rise.mad
+	=> Les modifs de Documents\Rise.mad sont écrasée !
+	=> Ne JAMAIS modifier ou écraser C:\Rise-original.mad !
+
+- Lance MadMapper avec le projet Documents\Rise.mad
+
+Si des modifications sont effectuées sur le projet en cours d'utilisation,
+même si c'est modifications sont enregistrées, elles seront perdues au prochain redémarrage.
+
+Cela permet de garantir qu'à un nouveau démarrage on repart d'un projet propre (copie de C:\Rise\Rise-original.mad)
+
+Si il est vraiment nécessaire d'apporter une modification pérenne au projet, 
+il faut faire "Enregistrer Sous" dans un nouveau fichier

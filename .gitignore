@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# nodejs
+node_modules/
+npm-debug.log
+
+
