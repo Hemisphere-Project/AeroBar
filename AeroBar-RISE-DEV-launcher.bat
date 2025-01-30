@@ -1,0 +1,6 @@
+taskkill /f /im "MadMapper.exe"
+cd /D "%~dp0"
+echo F|xcopy /y "AeroBar-RISE-original.mad" "%userprofile%\Documents\RISE.mad"
+start "" "C:\Program Files\MadMapper 5.6.6\MadMapper.exe" "AeroBar-RISE-original.mad"
+cd "midi2osc"
+pm2 start "midi2osc.js"

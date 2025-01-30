@@ -38,3 +38,6 @@ npm-debug.log
 # media
 *.mov
 *.mp4
+
+# madmap 
+MadMapperProjectData/
