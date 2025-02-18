@@ -42,7 +42,7 @@ Preferences preferences;
 // Tests
 unsigned long lastChange = 0;
 int color = 0;
-int testMaster = 100;
+int testMaster = 70;
 bool testing = true;
 
 // Artnet stuff
@@ -106,7 +106,7 @@ void dumpArtnet(const uint8_t *data, uint16_t size, ArtNetRemoteInfo remote, Art
   Serial.print(":");
   Serial.print(remote.port);
   Serial.print(", universe = ");
-  Serial.print(metadata.universe);
+  Serial.print(metadata.universe + 16*metadata.subnet + 256*metadata.net);
   Serial.print(", sequence = ");
   Serial.print(metadata.sequence);
   // Serial.print(", physical = ");
@@ -129,6 +129,7 @@ void dumpArtnet(const uint8_t *data, uint16_t size, ArtNetRemoteInfo remote, Art
 void onArtnet(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
   // STOP TESTING
   if (testing) {
+    Serial.println("Stop testing, ArtNet received");
     testing = false;
     all(0, 0, 0, 0);
   }
@@ -139,10 +140,19 @@ void onArtnet(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata
   // }
 
   // dumpArtnet(data, size, remote, metadata);
-
-  int pixStart = (metadata.universe - universeStart) * (512/dmxPixelSize);
+  int universe = metadata.universe + 16*metadata.subnet + 256*metadata.net;
+  // Serial.printf("Universe: %d\n", universe);
+  int pixStart = (universe - universeStart) * (512/dmxPixelSize);
+  if (pixStart < 0) {
+    Serial.println("ERROR: pixStart < 0");
+    return;
+  }
   int pixEnd = pixStart + (size / dmxPixelSize) - 1;
   if (pixEnd >= PIXEL_COUNT) pixEnd = PIXEL_COUNT-1;
+  if (pixEnd < 0) {
+    Serial.println("ERROR: pixStart < 0");
+    return;
+  }
   // Serial.printf("Setting pixels %d to %d\n", pixStart, pixEnd);
   for (int i = pixStart; i <= pixEnd; i++) {
     int ix = (i - pixStart) * dmxPixelSize;
@@ -206,6 +216,23 @@ void setup() {
   PIXEL_COUNT = STRIP_SIZES[STRIP_POSITION];
   Serial.printf("Pixel count: %d\n", PIXEL_COUNT);
 
+  // Set STRIP
+  digitalLeds_init();
+  strip = digitalLeds_addStrand(
+          {.rmtChannel = 0, .gpioNum = PIN_LED, .ledType = LED_SK6812W_V1, .brightLimit = 255, .numPixels = PIXEL_COUNT, .pixels = nullptr, ._stateVars = nullptr});
+  
+  buffer = (pixelColor_t*)malloc(PIXEL_COUNT * sizeof(pixelColor_t));
+  bufferOUT = (pixelColor_t*)malloc(PIXEL_COUNT * sizeof(pixelColor_t));
+  bufferMutex = xSemaphoreCreateMutex();
+
+  // Init buffer 
+  all(testMaster, testMaster/2, testMaster/2);
+
+  // Draw thread
+  xTaskCreate(drawTask, "drawTask", 4096, NULL, 1, NULL);
+
+  delay(10000);
+
   // Set up ethernet
   esp_efuse_mac_get_default(mac); 
   mac[0] = 0x02;
@@ -213,6 +240,13 @@ void setup() {
   SPI.begin(SCK, MISO, MOSI, -1);
   Ethernet.init(CS);
   delay(200);
+  // print mac
+  Serial.print("MAC Address: ");
+  for (int i = 0; i < 6; i++) {
+    Serial.print(mac[i], HEX);
+    if (i < 5) Serial.print(":");
+  }
+  Serial.println();
   Ethernet.begin(mac, ip, IPAddress(10, 0, 0, 254), IPAddress(10, 0, 0, 254), IPAddress(255, 255, 255, 0));
   delay(200);
   Serial.print("IP Address: ");
@@ -242,24 +276,7 @@ void setup() {
   wifi = new K32_wifi(name);
   wifi->connect("hmsphr", "hemiproject");
  
-  // Set STRIP
-  digitalLeds_init();
-  strip = digitalLeds_addStrand(
-          {.rmtChannel = 0, .gpioNum = PIN_LED, .ledType = LED_SK6812W_V1, .brightLimit = 255, .numPixels = PIXEL_COUNT, .pixels = nullptr, ._stateVars = nullptr});
-  
-  buffer = (pixelColor_t*)malloc(PIXEL_COUNT * sizeof(pixelColor_t));
-  bufferOUT = (pixelColor_t*)malloc(PIXEL_COUNT * sizeof(pixelColor_t));
-  bufferMutex = xSemaphoreCreateMutex();
 
-  // Init buffer 
-  clear();
-  draw();
-
-  // Set all pixels to low white
-  // all(10, 10, 10, 10);
-
-  // Draw thread
-  xTaskCreate(drawTask, "drawTask", 4096, NULL, 1, NULL);
 
   // Ready
   Serial.println("Ready.");
@@ -290,7 +307,7 @@ void loop()
         case 2: all(0, testMaster, testMaster); break;
         case 3: all(testMaster, testMaster, testMaster); break;
       }
-      color = (color + 1) % 4;
+      color = (color + 1) % 3;
     }
 }
 
