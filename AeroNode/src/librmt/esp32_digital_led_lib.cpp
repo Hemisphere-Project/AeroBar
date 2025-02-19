@@ -165,7 +165,8 @@ static void handleInterrupt(void *arg);
 
 uint8_t gamma8(uint8_t value)
 {
-  return (int)value*(int)value/255;
+  return value;
+  // return (int)value*(int)value/255;
   //return gamma8_table[value];
 }
 
@@ -256,7 +257,7 @@ strand_t* digitalLeds_addStrand(strand_t strands)
   RMT.int_ena.val |= tx_thr_event_offsets[pStrand->rmtChannel];  // RMT.int_ena.ch<n>_tx_thr_event = 1;
   RMT.int_ena.val |= tx_end_offsets[pStrand->rmtChannel];  // RMT.int_ena.ch<n>_tx_end = 1;
 
-  digitalLeds_updatePixels(pStrand);
+  // digitalLeds_updatePixels(pStrand);
 
   return pStrand;
 }

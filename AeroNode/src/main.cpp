@@ -18,6 +18,7 @@ int PIXEL_COUNT = 0;  // 660
 
 const int PIN_LED = 26; // 26, 32
 const int PIN_REF = 32; // 26, 32
+const int PIN_ETH = 21; 
 
 #define SCK  22
 #define MISO 23
@@ -42,8 +43,9 @@ Preferences preferences;
 // Tests
 unsigned long lastChange = 0;
 int color = 0;
-int testMaster = 70;
+int testMaster = 250;
 bool testing = true;
+int noNetwork = 0;
 
 // Artnet stuff
 ArtnetReceiver artnet;
@@ -165,11 +167,26 @@ void onArtnet(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata
   // if (metadata.universe == universeStart ) dirty = true;
 }
 
+void serviceLight() 
+{
+  // get value from 0.8 to 1.0 * testMaster
+  // int testV = testMaster * (0.8 + 0.2 * sin(millis() / 1000.0));
+  // all(testV, testV/1.1, testV/1.4);
+  all(testMaster, testMaster/1.1, testMaster/1.4);
+}
+
 
 //
 // SETUP
 //
 void setup() {
+
+  // Reset ETH stack
+  pinMode(PIN_ETH, OUTPUT);
+  digitalWrite(PIN_ETH, LOW);
+  delay(200);
+  digitalWrite(PIN_ETH, HIGH);
+  delay(100);
 
   // Init Serial
   Serial.begin(115200);
@@ -226,12 +243,12 @@ void setup() {
   bufferMutex = xSemaphoreCreateMutex();
 
   // Init buffer 
-  all(testMaster, testMaster/2, testMaster/2);
+  serviceLight();
 
   // Draw thread
   xTaskCreate(drawTask, "drawTask", 4096, NULL, 1, NULL);
-
-  delay(10000);
+  
+  delay(1000);
 
   // Set up ethernet
   esp_efuse_mac_get_default(mac); 
@@ -280,7 +297,6 @@ void setup() {
 
   // Ready
   Serial.println("Ready.");
-  
 }
 
 //
@@ -301,13 +317,15 @@ void loop()
   if (testing)
     if (millis() - lastChange > 1000) {
       lastChange = millis();
-      switch (color) {
-        case 0: all(testMaster, 0, testMaster); break;
-        case 1: all(testMaster, testMaster, 0); break;
-        case 2: all(0, testMaster, testMaster); break;
-        case 3: all(testMaster, testMaster, testMaster); break;
+      
+      serviceLight();
+      noNetwork += 1;
+
+      // No network -> Restart all
+      if (noNetwork > 120) {
+        Serial.println("No ArtNet for too long, restarting");
+        ESP.restart();  
       }
-      color = (color + 1) % 3;
     }
 }
 
