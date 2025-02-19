@@ -13,10 +13,6 @@ const config = {
         38: '/cues/selected/scenes/by_cell/col_7',
         39: '/cues/selected/scenes/by_cell/col_8'
     },
-    noteOff: {
-        60: '/note/off/middleC', // Middle C
-        61: '/note/off/C#'
-    },
     controlChange: {
         16: '/cues/selected/scenes/by_cell/col_9',
         17: '/cues/selected/scenes/by_cell/col_10',
