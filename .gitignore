@@ -1,3 +1,15 @@
+# Media 
+*.mov
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# DS_Store
+.DS_Store
+*DS_Store
+
 # Prerequisites
 *.d
 
