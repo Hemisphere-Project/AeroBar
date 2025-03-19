@@ -10,8 +10,8 @@
 // CONFIGURATION
 //
 
-// Uncomment to set
-// #define _STRIP_POSITION 18
+// Uncomment to set WARNING: for USB ONLY !!!
+// #define _STRIP_POSITION 2
 
 const int STRIP_SIZES[19] = {0, 528, 537, 543, 537, 534, 537, 540, 537, 537, 525, 525, 528, 531, 543, 540, 534, 528, 528};
 int PIXEL_COUNT = 0;  // 660

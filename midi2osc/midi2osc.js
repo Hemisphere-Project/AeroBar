@@ -136,6 +136,10 @@ connectOSC()
 
 console.log('Listening for MIDI messages...')
 
+process.on('exit', () => {
+    input.closePort();
+});
+
 // Also listen for Ctrl+C
 process.on('SIGINT', () => {
     console.log('Closing MIDI port...');

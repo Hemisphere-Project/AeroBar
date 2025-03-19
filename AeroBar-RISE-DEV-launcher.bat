@@ -1,6 +1,64 @@
-taskkill /f /im "MadMapper.exe"
+@echo off
+setlocal enabledelayedexpansion
+
+echo.
+echo ===== AeroBar RISE Launcher =====
+echo.
+
+echo. WARNING: The MadMapper project is openend in READ/WRITE mode.
+echo.       If you save the project, it will overwrite the original file !
+echo.
+
 cd /D "%~dp0"
-echo F|xcopy /y "AeroBar-RISE-original.mad" "%userprofile%\Documents\RISE.mad"
-start "" "C:\Program Files\MadMapper 5.6.6\MadMapper.exe" "AeroBar-RISE-original.mad"
-cd "midi2osc"
-pm2 start "midi2osc.js"
+
+REM Set PM2 environment variables (critical for Windows)
+set PM2_HOME=%USERPROFILE%\.pm2
+set PATH=%PATH%;%APPDATA%\npm
+
+@REM kill MadMapper if running
+taskkill /IM MadMapper.exe /F >nul 2>&1
+
+REM 1. Path validation for critical components
+where pm2 >nul 2>&1
+if !errorlevel! neq 0 (
+    echo PM2 not found in system PATH
+    exit /b 1
+)
+
+REM 2. PM2 Process Management with proper error handling
+call pm2 stop midi2osc >nul 2>&1
+call pm2 del midi2osc >nul 2>&1
+@REM Reset midi 
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "reset-midi.ps1"
+
+cd midi2osc
+call pm2 start midi2osc.js >nul 2>&1
+cd ..
+if !errorlevel! neq 0 (
+    echo PM2 failed to start midi2osc
+) else (
+    echo PM2 started midi2osc
+    echo.
+)
+
+
+REM 3. Remaining script commands...
+timeout 3 >nul
+copy /Y "AeroBar-RISE-original.mad" "%USERPROFILE%\Documents\RISE.mad"
+echo Copied RISE-original.mad to Documents\RISE.mad
+echo.
+
+REM 4. MadMapper launch with explicit path validation
+if exist "C:\Program Files\MadMapper 5.6.6\MadMapper.exe" (
+    start "" "C:\Program Files\MadMapper 5.6.6\MadMapper.exe" "AeroBar-RISE-original.mad"
+    echo MadMapper started with AeroBar-RISE-original.mad
+) else (
+    echo MadMapper.exe not found at specified path
+)
+
+@REM sleep 5
+echo.
+echo "Have fun ^!"
+echo.
+timeout 5 >nul
+
