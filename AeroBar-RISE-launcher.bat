@@ -12,35 +12,35 @@ echo.
 cd /D "%~dp0"
 
 REM Set PM2 environment variables (critical for Windows)
-set PM2_HOME=%USERPROFILE%\.pm2
-set PATH=%PATH%;%APPDATA%\npm
+@REM set PM2_HOME=%USERPROFILE%\.pm2
+@REM set PATH=%PATH%;%APPDATA%\npm
 
 @REM kill MadMapper if running
 taskkill /IM MadMapper.exe /F >nul 2>&1
 
 REM 1. Path validation for critical components
-where pm2 >nul 2>&1
-if !errorlevel! neq 0 (
-    echo PM2 not found in system PATH
-    exit /b 1
-)
+@REM where pm2 >nul 2>&1
+@REM if !errorlevel! neq 0 (
+@REM     echo PM2 not found in system PATH
+@REM     exit /b 1
+@REM )
 
 REM 2. PM2 Process Management with proper error handling
-call pm2 stop midi2osc >nul 2>&1
-call pm2 del midi2osc >nul 2>&1
+@REM call pm2 stop midi2osc >nul 2>&1
+@REM call pm2 del midi2osc >nul 2>&1
 
 @REM Reset midi 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "reset-midi.ps1"
+@REM powershell.exe -NoProfile -ExecutionPolicy Bypass -File "reset-midi.ps1"
 
-cd midi2osc
-call pm2 start midi2osc.js >nul 2>&1
-cd ..
-if !errorlevel! neq 0 (
-    echo PM2 failed to start midi2osc
-) else (
-    echo PM2 started midi2osc
-    echo.
-)
+@REM cd midi2osc
+@REM call pm2 start midi2osc.js >nul 2>&1
+@REM cd ..
+@REM if !errorlevel! neq 0 (
+@REM     echo PM2 failed to start midi2osc
+@REM ) else (
+@REM     echo PM2 started midi2osc
+@REM     echo.
+@REM )
 
 
 REM 3. Remaining script commands...
